@@ -63,6 +63,8 @@ ALLOWED_TOOLS = [
     "mcp__jarvis__what_is_on_screen",
     "mcp__jarvis__look_at_screen",
     "mcp__jarvis__github_repo",
+    "mcp__jarvis__scan_network",
+    "mcp__jarvis__scan_host",
     "mcp__jarvis__usage_status",
     "mcp__jarvis__connections",
     "mcp__jarvis__enable_session_inbox",

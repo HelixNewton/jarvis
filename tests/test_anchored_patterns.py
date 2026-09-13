@@ -269,6 +269,10 @@ SAMPLES = {
     "_HEADING": "# Title",
     "_TASK_HEADING": "## Task 1: wire the executor",
     "_CHECKBOX": "- [x] done",
+    # net_scan: what may be handed to nmap, and one line of what it says back.
+    "NETWORK_RE": "192.168.1.0/24",
+    "RANGE_RE": "192.168.1.1-50",
+    "_HOST_RE": "Host: 192.168.1.13 (adguard)",
 }
 
 ALPHABET = ("abcdefghijklmnopqrstuvwxyz0123456789"

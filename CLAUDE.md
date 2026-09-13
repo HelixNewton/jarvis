@@ -128,6 +128,9 @@ arbitrary LLM and file content, so everything goes through
   only on a turn the user drove, never persisted, never on a timer
 - `repo_read.py` — Cheap, model-free reading of a repository (no `claude`
   subprocess)
+- `net_scan.py` — The user's own network, through `nmap`: host discovery and
+  a port scan of one device, behind `scan_network` / `scan_host`. Refuses any
+  target that is not on his own side of the router
 - `project_maker.py` — Creates a new project directory from a spoken name,
   path-validated against the projects root
 - `work_mode.py` — Vestigial. `is_casual_question` is imported by `server.py`

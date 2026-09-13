@@ -430,6 +430,51 @@ TOOL_SPECS = [
         },
     },
     {
+        "name": "scan_network",
+        "description": (
+            "Which devices are on the user's OWN network, through nmap: address "
+            "and name of everything that answers. THE way to answer 'what's on "
+            "my network' or 'is the printer online'. No target sweeps this "
+            "machine's network; a target may be an address, a range "
+            "(192.168.1.1-50) or a network (192.168.1.0/24), his own network "
+            "only. Say 'Scanning now, sir.' first. A whole network takes about "
+            "half a minute: if it comes back still sweeping, say 'Still "
+            "sweeping, sir.' and call it again. A recent sweep is reused and "
+            "says how old it is."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target": {"type": "string",
+                           "description": "Address, range or network on his own LAN. "
+                                          "Omit for the network this machine is on."},
+                "fresh": {"type": "boolean",
+                          "description": "Sweep again even if a recent result exists."},
+            },
+        },
+    },
+    {
+        "name": "scan_host",
+        "description": (
+            "What ONE device on the user's own network answers on, through "
+            "nmap: its open TCP ports and the service each usually is — the "
+            "hundred most common ports, or the ports given. THE way to answer "
+            "'what's open on the router', 'is SSH on that box', 'does it run a "
+            "web server'. The target is an address or name from scan_network, "
+            "on his own network only. Say 'Scanning now, sir.' first: it takes "
+            "several seconds."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target": {"type": "string",
+                           "description": "One address or device name on his own LAN."},
+                "ports": {"type": "string",
+                          "description": "Optional: numbers and ranges, comma-separated, "
+                                         "e.g. '22,80,443' or '1-1024'."},
+            },
+            "required": ["target"],
+        },
+    },
+    {
         "name": "usage_status",
         "description": (
             "How much of the user's Claude subscription is used: the five-hour "

@@ -85,6 +85,14 @@ codebase that started without them. Here it is load-bearing from the floor up:
 - Credentials, keys and `.env` files are refused by the file reader, and his
   own tool token by exact name.
 
+## He can see the network in the room
+
+`scan_network` and `scan_host` drive the `nmap` already on the machine: which
+devices are answering, and what one of them has open. Your own network only —
+anything routable on the internet is refused before nmap sees it, a target
+can never become an nmap option, and a device's name comes back inside an
+untrusted block like everything else somebody else wrote.
+
 ## And it is tested
 
 Public: 6 test files, 43 tests. Here: 83 files, **2,405 tests**, named for the
