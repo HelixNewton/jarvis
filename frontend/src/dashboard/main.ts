@@ -17,6 +17,7 @@ import { initMemory, refreshMemory } from "./memory";
 import { initProjects, refreshProjects } from "./projects";
 import { initSpecs, refreshSpecs } from "./specs";
 import { initUsage, refreshUsageView } from "./usage";
+import { initDisplay, refreshDisplay } from "./display";
 import {
   el, row, readout, bar, pill, setTone, statusDot, statusPill, stateStyle,
   emptyState, flash,
@@ -462,6 +463,7 @@ function setupTabs(): void {
     memory: document.getElementById("memory-view"),
     projects: document.getElementById("projects-view"),
     specs: document.getElementById("specs-view"),
+    display: document.getElementById("display-view"),
     usage: document.getElementById("usage-view"),
   };
   for (const tab of tabs) {
@@ -489,6 +491,10 @@ function setupTabs(): void {
       // sitting open and the wrong one for a tab just opened — the numbers
       // would be up to a minute stale at the moment they are looked at.
       if (view === "usage") void refreshUsageView();
+      // Display has a hint socket, but the picture the reader has come to
+      // look at is the one JARVIS put up while this tab was hidden: one
+      // fetch on open rather than trusting the hint arrived.
+      if (view === "display") void refreshDisplay();
     });
   }
 }
@@ -513,6 +519,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // brain takes a turn, and the transcripts are written by other processes
   // entirely. It loads up front and polls.
   initUsage();
+  // Display opens its own socket (/ws/visuals), which only ever says
+  // "something moved" — the view re-reads /api/visuals for the truth.
+  initDisplay();
 
   connectLive({
     onReconcile: () => void reconcile(),

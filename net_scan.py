@@ -505,4 +505,47 @@ async def ports(target: Target, which: str | None = None,
     # nmap's own per-host deadline sits inside ours, so it stops and prints
     # what it has rather than being killed with nothing written.
     host_timeout = f"{max(1, int(deadline) - 3)}s"
-    return await _scan(target, [*select, "--host-timeout", host_timeout], deadline)
+    scan = await _scan(target, [*select, "--host-timeout", host_timeout], deadline)
+    for device in scan.devices:
+        _ports_seen[device.address] = (list(device.ports), _now())
+    return scan
+
+
+# What each device was last seen to have open, for the network map: the map
+# shows what is KNOWN and claims nothing about devices nobody has looked at.
+_ports_seen: dict[str, tuple[list, float]] = {}
+
+
+def known_ports(address: str, ttl: float | None = None) -> list | None:
+    """The ports a recent `ports()` scan found on `address`, or None if it
+    has not been scanned within `ttl` (default `RESULT_TTL`)."""
+    ttl = RESULT_TTL if ttl is None else ttl
+    seen = _ports_seen.get(address)
+    if seen is None or _now() - seen[1] > ttl:
+        return None
+    return list(seen[0])
+
+
+# --- the router -------------------------------------------------------------
+
+def _route_output() -> str:
+    """`route -n get default`, macOS's answer to "which way is out". Its own
+    function so a test can replace it. An argument list, no user input."""
+    import subprocess
+    try:
+        return subprocess.run(["route", "-n", "get", "default"],
+                              capture_output=True, text=True, timeout=3).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def default_gateway() -> str | None:
+    """The router's address on the default route, or None. Only ever an
+    address that passes the grammar: it lands in a diagram label."""
+    for line in _route_output().splitlines():
+        key, _, value = line.strip().partition(":")
+        if key.strip() == "gateway":
+            candidate = value.strip()
+            if ADDRESS_RE.fullmatch(candidate):
+                return candidate
+    return None

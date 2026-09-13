@@ -291,13 +291,20 @@ def test_reading_more_is_still_allowed(call):
 
 
 def test_answering_a_dialog_survives(call):
-    """The one acting exemption. Its payload is a single keystroke — Return,
+    """The first acting exemption. Its payload is a single keystroke — Return,
     Escape or one numbered option — so it cannot carry an attacker's text
     anywhere, and refusing it would break the permission-prompt flow that is
-    most of what JARVIS is for: "what's it asking? … allow it"."""
+    most of what JARVIS is for: "what's it asking? … allow it".
+
+    The second is `show`: it puts text on the user's OWN screen, in a panel
+    labelled as JARVIS's drawing with its source printed under it ("drawn
+    from a web page" on a turn that read one), runs nothing and sends nothing
+    anywhere. The user chose the source line over the refusal, so "read that
+    and show me" works in one breath — tests/test_visuals.py drives it."""
     server = call[2]
     assert server._untrusted_content_refusal("answer_dialog", True) is None
-    assert server.TAINT_EXEMPT_ACTING == {"answer_dialog"}
+    assert server._untrusted_content_refusal("show", True) is None
+    assert server.TAINT_EXEMPT_ACTING == {"answer_dialog", "show"}
 
 
 def test_steering_and_running_a_command_are_no_longer_exempt(call):

@@ -9,6 +9,8 @@ import { createOrb, type OrbState } from "./orb";
 import { createVoiceInput, createAudioPlayer, createMicMonitor } from "./voice";
 import { createSocket } from "./ws";
 import { openSettings, checkFirstTimeSetup } from "./settings";
+import { createDisplay } from "./visual";
+import type { Visual } from "./visual-render";
 import "./style.css";
 
 // ---------------------------------------------------------------------------
@@ -151,6 +153,19 @@ audioPlayer.onPlayed((utt, idx) => {
   socket.send({ type: "played", utt, idx });
 });
 
+// ── the display ───────────────────────────────────────────────────────────
+// A panel beside the orb for what JARVIS draws. Closing it tells the server,
+// so a reload does not bring it straight back; clicking something in it asks
+// about it in the same words the hover showed, as a transcript — the server
+// treats it exactly as speech, and logs it as the click it was.
+const display = createDisplay({
+  onClose: () => socket.send({ type: "visual_closed" }),
+  onAsk: (label: string) => {
+    socket.send({ type: "transcript", text: `Tell me more about ${label}`,
+                  isFinal: true, via: "display" });
+  },
+});
+
 // End of speech is the server's call (`status: idle` after every chunk is
 // acked); a transient empty queue mid-utterance must not flip the UI.
 audioPlayer.onFinished(() => {});
@@ -197,6 +212,12 @@ socket.onMessage((msg) => {
     const text = String(msg.text ?? "");
     statusEl.textContent = text;
     if (text) console.log("[notice]", text);
+  } else if (type === "visual") {
+    // What JARVIS is putting on the screen: the whole spec, already bounded
+    // and flattened by the server, or null to take the display down.
+    const visual = (msg.visual ?? null) as Visual | null;
+    if (visual) display.show(visual);
+    else display.clear();
   }
 });
 
