@@ -2350,6 +2350,10 @@ TAINTING_TOOLS = {
     "read_page": "a web page",
     "look_at_page": "a web page",
     "github_repo": "a GitHub repository",
+    # Devices on the user's own network. A device's name is its reverse-DNS
+    # entry — whatever it, or whoever runs the DNS, chose to call it.
+    "scan_network": "a device on your network",
+    "scan_host": "a device on your network",
     # The user's own desk. His words, a website's, another session's — the
     # code already called this "a genuine injection surface" and then did not
     # gate it.
@@ -2409,8 +2413,16 @@ TAINT_EXEMPT_TOOLS = {
 # desk. One lists his windows, the other photographs his display. Neither
 # reaches a network address and neither carries a payload anywhere, so "search
 # for that error, then look at my screen" has nothing in it to refuse.
+#
+# The two network scans are here for the same reason as `github_repo`: "what's
+# on the network, then what's open on the router" is one question, and the
+# second call would otherwise be refused because the first tainted the turn
+# with a device's name. They cannot leave the user's own network
+# (`net_scan.resolve_target` refuses anything routable) and they carry no
+# payload anywhere — a probe is a probe.
 UNTRUSTED_READING_TOOLS = {"read_page", "look_at_page", "github_repo",
-                           "look_at_screen", "what_is_on_screen"}
+                           "look_at_screen", "what_is_on_screen",
+                           "scan_network", "scan_host"}
 
 # The one acting tool that survives a tainted turn.
 #
@@ -6026,6 +6038,155 @@ TOOL_HANDLERS["github_repo"] = tool_github_repo
 # It reaches out on a name built from a model's output, exactly as the page
 # tools do, and it can enumerate the user's private repositories. Same gate.
 ACTING_TOOLS.add("github_repo")
+
+
+# ---------------------------------------------------------------------------
+# His own network, through nmap
+# ---------------------------------------------------------------------------
+#
+# "What's on my network?", "is the printer online?", "what's open on the
+# router?" `nmap` is on this machine and answers in seconds; `net_scan` drives
+# it and draws the one line that matters — the user's own network and nothing
+# else — in code. This is the speaking half: one sentence of JARVIS's own with
+# the count he asked for, and every name a device gave itself inside an
+# untrusted block, because a device's reverse-DNS name is text somebody else
+# chose exactly as a README is.
+
+import net_scan                                           # noqa: E402
+
+# The whole scan, end to end, inside `jarvis_mcp.TIMEOUT_SEC` (20s) for the
+# reason at the top of jarvis_mcp.py. `nmap`'s own per-host deadline sits
+# inside this one (see `net_scan.ports`).
+SCAN_DEADLINE_SEC = net_scan.DEADLINE
+
+_SCAN_WRAP_NAME = "network scan"
+
+# A spoken sentence per refusal or failure. None of them repeats the address
+# it refused, and none tells the user to go and look at a terminal.
+_SCAN_PROBLEM_LINES = {
+    "no_nmap": "I haven't got nmap on this machine, sir.",
+    "no_network": "I can't tell which network this machine is on, sir.",
+    "shape": "That isn't an address or a device name I can scan, sir.",
+    "too_wide": ("That's more network than I'll sweep in one go, sir — a "
+                 "slash twenty-two at most."),
+    "not_local": ("That isn't on your own network, sir, and your own is the "
+                  "only one I scan."),
+    "unresolved": ("I can't find a device by that name, sir — give me its "
+                   "address from the sweep."),
+    "failed": "nmap wouldn't run that scan, sir.",
+}
+
+
+def _plural(count: int, one: str, many: str) -> str:
+    return f"{count} {one if count == 1 else many}"
+
+
+def _device_lines(devices: list) -> str:
+    """Address and name per device, for INSIDE the block: a name is what the
+    device (or whoever runs the DNS) chose to call it."""
+    lines = []
+    for d in devices:
+        name = str(getattr(d, "name", "") or "").strip()
+        lines.append(f"{d.address}  {name}" if name else f"{d.address}  (no name)")
+    return "\n".join(lines)
+
+
+async def tool_scan_network(args: dict) -> str:
+    """Which devices answer on the user's own network, through nmap."""
+    spoken = str(args.get("target") or "").strip()
+    target = await net_scan.resolve_target(spoken or None)
+    if target.problem:
+        return _SCAN_PROBLEM_LINES.get(target.problem, _SCAN_PROBLEM_LINES["shape"])
+
+    # `target.given` passed `net_scan`'s grammar, and `_plain_name` is the
+    # wall behind it: an address, a range or a network is an ordinary name.
+    where = _plain_name(target.given, "your network")
+
+    # A whole network takes ~20s unprivileged (see net_scan, rule 3), so the
+    # sweep runs in the background and this call WAITS on it. Still running
+    # when the wait is up is an answer too: the brain says so and asks again.
+    try:
+        answer = await net_scan.sweep_or_wait(target, fresh=bool(args.get("fresh")))
+    except Exception as e:
+        log.warning("scan_network failed: %s", e)
+        return _SCAN_PROBLEM_LINES["failed"]
+    if answer.status == "running":
+        return (f"still_sweeping — the sweep of {where} has been going "
+                f"{int(answer.elapsed)} seconds and is not finished. Say only "
+                f"'Still sweeping, sir.' and call scan_network again with the "
+                f"same target; that call waits for the result.")
+    scan = answer.scan
+    if scan.problem in ("no_nmap", "failed"):
+        return _SCAN_PROBLEM_LINES[scan.problem]
+
+    count = len(scan.devices)
+    if scan.problem == "timeout":
+        header = (f"The sweep of {where} ran out of time, sir; "
+                  f"{_plural(count, 'device had', 'devices had')} answered by then.")
+    elif count == 0:
+        header = f"Nothing answered on {where}, sir."
+    else:
+        header = f"{where} — {_plural(count, 'device', 'devices')} answering."
+    if answer.status == "cached":
+        header += (f" (From a sweep {_say_age(answer.age)}; say so, and pass "
+                   f"fresh for a new one.)")
+    if count == 0:
+        return header
+    return f"{header}\n{_wrap_untrusted(_SCAN_WRAP_NAME, _device_lines(scan.devices))}"
+
+
+async def tool_scan_host(args: dict) -> str:
+    """What one device on the user's own network answers on, through nmap."""
+    spoken = str(args.get("target") or "").strip()
+    if not spoken:
+        return "Which device, sir?"
+    which = str(args.get("ports") or "").strip()
+    if which and net_scan.ports_problem(which):
+        return "Those aren't port numbers I can use, sir."
+    target = await net_scan.resolve_target(spoken)
+    if target.problem:
+        return _SCAN_PROBLEM_LINES.get(target.problem, _SCAN_PROBLEM_LINES["shape"])
+    if target.kind != "host":
+        return ("One device at a time for ports, sir — sweep the network first "
+                "and give me one address from it.")
+
+    try:
+        scan = await net_scan.ports(target, which or None, deadline=SCAN_DEADLINE_SEC)
+    except Exception as e:
+        log.warning("scan_host failed: %s", e)
+        return _SCAN_PROBLEM_LINES["failed"]
+    if scan.problem in ("no_nmap", "failed"):
+        return _SCAN_PROBLEM_LINES[scan.problem]
+
+    where = _plain_name(target.given, "That device")
+    if not scan.devices:
+        if scan.problem == "timeout":
+            return f"{where} took too long to answer, sir — I've stopped the scan."
+        return f"Nothing at {where} answered, sir — it may be off, or ignoring me."
+    device = scan.devices[0]
+    open_ports = [p for p in device.ports if p.state == "open"]
+    checked = len(device.ports) + device.ignored
+    header = (f"{where} — {_plural(len(open_ports), 'open port', 'open ports')} "
+              f"of {checked} checked.")
+    if scan.problem == "timeout":
+        header += " The scan ran out of time, sir; this is what had come back."
+    if not open_ports:
+        return header
+    # Port numbers are nmap's and the service names are nmap's guess from its
+    # own table. Inside the block all the same: nothing a device sends back
+    # reaches a line the brain reads as JARVIS's own.
+    body = "\n".join(f"{p.number}/{p.protocol} {p.state} {p.service or ''}".rstrip()
+                     for p in open_ports)
+    return f"{header}\n{_wrap_untrusted(_SCAN_WRAP_NAME, body)}"
+
+
+TOOL_HANDLERS.update({
+    "scan_network": tool_scan_network,
+    "scan_host": tool_scan_host,
+})
+# They send probes to real devices on a target built from a model's output.
+# Same gate as `github_repo`: only when the user is the one talking.
+ACTING_TOOLS.update({"scan_network", "scan_host"})
 
 
 # ---------------------------------------------------------------------------

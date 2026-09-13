@@ -110,6 +110,9 @@ is a small, well-isolated file to replace — see *Make it yours* below.
 - **Records everything.** Every Claude Code process JARVIS starts is a *run*:
   a row in SQLite with its prompt, project, status, token usage and the full
   event stream. Watch them live at `/dashboard`.
+- **Knows what is on your network.** "What's on my network?" and "what's open
+  on the router?" go to the `nmap` on your machine — your own LAN only; a
+  public address is refused in code, not in the prompt.
 
 ![The Runs view of the JARVIS dashboard. A red "Needs Attention" panel holds a
 failed run and a timed-out one, with the failure's exit code and error printed
@@ -149,6 +152,8 @@ stuck is the CLI's own words, not a guess. Fictional sample data.*
   log in. This is what JARVIS runs on.
 - **Python 3.11+** and **Node.js 18+**.
 - **A Fish Audio API key.** Required; there is no fallback voice.
+- **nmap** (optional). `brew install nmap`. Without it, `scan_network` and
+  `scan_host` answer that nmap is not on the machine and nothing else changes.
 
 ## Setup
 

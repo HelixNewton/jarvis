@@ -424,6 +424,12 @@ EXEMPT = {
         "whole listing goes through `_wrap_untrusted(_WINDOWS_WRAP_NAME, …)` "
         "— the wrapper's name a literal, for the reason test_page_tools "
         "pins. Covered by tests/test_screen_tools.py"),
+    "server.tool_scan_host": (
+        "`p.state` is a PORT's state out of nmap's output — open, filtered, "
+        "closed — not a session's. It is compared, and printed only in the "
+        "body handed to `_wrap_untrusted(_SCAN_WRAP_NAME, body)`; the header "
+        "above the block carries counts and `_plain_name(target.given, …)` "
+        "and nothing a device sent. Covered by tests/test_net_scan.py"),
 
     # --- the sanitisers themselves ---------------------------------------
     "server._said_name": (
