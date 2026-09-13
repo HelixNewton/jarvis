@@ -1,0 +1,86 @@
+/* The display panel on the JARVIS page: glass beside the orb, in the orb's
+   own palette. The picture inside it is styled by visual-render.css, which
+   both pages share. */
+
+#orb-canvas {
+  transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+/* The orb steps aside rather than hiding behind the panel. */
+body.display-open #orb-canvas {
+  transform: translateX(-22vw);
+}
+
+#display {
+  position: fixed;
+  top: 68px;
+  right: 20px;
+  /* As tall as the picture, never taller than the room: a three-row table
+     is a small card, a thirty-node map scrolls inside its own panel. */
+  max-height: calc(100vh - 144px);
+  width: min(46vw, 760px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(5, 8, 14, 0.78);
+  border: 1px solid rgba(14, 165, 233, 0.22);
+  border-radius: 10px;
+  box-shadow:
+    0 0 60px -30px rgba(76, 168, 232, 0.9),
+    inset 0 0 40px -28px rgba(155, 216, 255, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #dbe8f5;
+  z-index: 15;
+  animation: display-in 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+#display[hidden] { display: none; }
+
+@keyframes display-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.display-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px 18px;
+  border-bottom: 1px solid rgba(14, 165, 233, 0.12);
+}
+.display-kicker {
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(14, 165, 233, 0.55);
+}
+.display-close {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(14, 165, 233, 0.15);
+  border-radius: 6px;
+  background: rgba(14, 165, 233, 0.05);
+  color: rgba(14, 165, 233, 0.6);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.display-close:hover {
+  background: rgba(14, 165, 233, 0.14);
+  color: rgba(155, 216, 255, 0.9);
+  border-color: rgba(14, 165, 233, 0.3);
+}
+.display-body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px 20px 18px;
+}
+
+@media (max-width: 900px) {
+  #display { left: 12px; right: 12px; width: auto; top: 64px; max-height: calc(100vh - 154px); }
+  body.display-open #orb-canvas { transform: translateY(-30vh) scale(0.6); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #display { animation: none; }
+  #orb-canvas { transition: none; }
+}

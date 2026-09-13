@@ -65,6 +65,8 @@ ALLOWED_TOOLS = [
     "mcp__jarvis__github_repo",
     "mcp__jarvis__scan_network",
     "mcp__jarvis__scan_host",
+    "mcp__jarvis__show",
+    "mcp__jarvis__show_network",
     "mcp__jarvis__usage_status",
     "mcp__jarvis__connections",
     "mcp__jarvis__enable_session_inbox",

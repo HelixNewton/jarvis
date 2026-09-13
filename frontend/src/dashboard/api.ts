@@ -1,5 +1,7 @@
 /** Typed client for the /api/runs and /api/sessions surfaces. */
 
+import type { Visual } from "../visual-render";
+
 export interface RunRow {
   id: string;
   project_name: string;
@@ -121,6 +123,20 @@ export async function getStats(period = "day"): Promise<RunStats> {
  */
 export async function getUsageLimits(): Promise<UsageSnapshot> {
   return get<UsageSnapshot>("/api/usage/limits");
+}
+
+// ── the display ─────────────────────────────────────────────────────────────
+
+/** Everything JARVIS has put on the screen since he started, newest first,
+ * and which one is up now (`current`, or null when the display is down). */
+export interface VisualSnapshot {
+  visuals: Visual[];
+  current: string | null;
+  version: number;
+}
+
+export async function listVisuals(): Promise<VisualSnapshot> {
+  return get<VisualSnapshot>("/api/visuals");
 }
 
 export async function cancelRun(id: string): Promise<void> {

@@ -131,6 +131,11 @@ arbitrary LLM and file content, so everything goes through
 - `net_scan.py` — The user's own network, through `nmap`: host discovery and
   a port scan of one device, behind `scan_network` / `scan_host`. Refuses any
   target that is not on his own side of the router
+- `visuals.py` — The display: the vocabulary of what JARVIS can put on the
+  screen (diagram, table, steps, bars, cards), its caps and validation, the
+  in-memory history the Display tab reads, and the network map built from
+  `net_scan`'s results. Rendered by `frontend/src/visual-render.ts` on the
+  JARVIS page (`visual.ts`) and the dashboard (`dashboard/display.ts`)
 - `project_maker.py` — Creates a new project directory from a spoken name,
   path-validated against the projects root
 - `work_mode.py` — Vestigial. `is_casual_question` is imported by `server.py`

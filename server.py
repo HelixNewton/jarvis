@@ -2399,6 +2399,12 @@ TAINT_EXEMPT_TOOLS = {
     "remember": "it writes a memory, it does not read",
     "project_note": "it writes a note, it does not read",
     "write_journal": "it writes the journal, it does not read",
+    # The display. Neither puts anything new in front of the brain: `show`
+    # sends the brain's own composition to the screen and answers with a
+    # fixed sentence; `show_network` sends the map and answers with a count.
+    "show": "it draws on the user's screen, it does not read",
+    "show_network": ("it puts the map on the screen and answers with a count; "
+                     "the device names go to the display, not to the brain"),
 }
 
 # Acting tools that only ever bring back MORE content to read. They are gated
@@ -2438,7 +2444,16 @@ UNTRUSTED_READING_TOOLS = {"read_page", "look_at_page", "github_repo",
 # to carry anywhere, and refusing it would break the flow that is most of what
 # JARVIS is for: "what's it asking?" (which reads a transcript, and taints)
 # "… allow it".
-TAINT_EXEMPT_ACTING = {"answer_dialog"}
+#
+# `show` is the other, for a different reason. It puts text on the USER'S OWN
+# SCREEN, inside a panel labelled as JARVIS's drawing with its source printed
+# underneath — "drawn from a web page" on a turn that read one — and it runs
+# nothing, sends nothing anywhere, and comes down with a click. "Read that
+# and show me" is the whole feature; refusing it on the turn that read the
+# page would leave the user asking twice for one picture. The user chose the
+# source line over the refusal (2026-09-13), knowing the trade: a page can
+# shape what is drawn, and the screen says so.
+TAINT_EXEMPT_ACTING = {"answer_dialog", "show"}
 
 # Writers whose output outlives the turn. `jarvis_memory.write_memory` puts
 # the model's text verbatim into `memory/*.md` and `add_to_index` into
@@ -6190,6 +6205,160 @@ ACTING_TOOLS.update({"scan_network", "scan_host"})
 
 
 # ---------------------------------------------------------------------------
+# The display: what JARVIS puts on the screen
+# ---------------------------------------------------------------------------
+#
+# "If I don't know something, JARVIS can visualise it for me — like my active
+# network." JARVIS speaks two sentences at most, so this is where the detail
+# goes: a diagram, a table, steps, a chart or cards, drawn on the JARVIS page
+# beside the orb and kept on the dashboard's Display tab. `visuals.py` holds
+# the vocabulary and the caps; this is the plumbing — the two tools, the frame
+# to the voice tab, and the dashboard's read of the history.
+#
+# A visual is text a model wrote, rendered element by element on the
+# frontend, so it can carry a device's name or a diagram drawn from a web page
+# without either becoming markup. What it may NOT do is pass for JARVIS's own
+# knowledge: every visual names its source, and one drawn on a turn that read
+# foreign text says so on the screen.
+
+import visuals                                            # noqa: E402
+
+visual_store = visuals.Store()
+
+
+async def _push_visual(visual: dict | None) -> None:
+    """The frame the voice tab gets: the whole spec, or None to take the
+    display down. A status frame, not content — with no tab connected it is
+    simply lost, and the tool's answer says so. The visual is in the history
+    for the Display tab either way."""
+    await _voice_emit({"type": "visual", "visual": visual})
+
+
+def _visual_source() -> str:
+    """The line under the title: where this turn's picture came from."""
+    source = getattr(brain_instance, "turn_untrusted_source", None)
+    return f"drawn from {source}" if source else "drawn by JARVIS"
+
+
+_NO_TAB_LINE = ("Drawn, sir, but no JARVIS page is open to show it on — it is "
+                "waiting on the dashboard's Display tab.")
+_SHOWN_LINE = ("On the screen now, sir. Say ONE sentence that points at it; do "
+               "not read it out.")
+
+
+async def tool_show(args: dict) -> str:
+    """Put a visual the brain composed on the display, or take it down."""
+    if args.get("clear"):
+        visual_store.clear()
+        await _push_visual(None)
+        return "Display cleared, sir."
+    clean, problem = visuals.validate(args.get("visual"))
+    if clean is None:
+        # A fixed sentence chosen by key — never a word out of the spec.
+        words = visuals.PROBLEMS.get(problem, "the visual is not valid")
+        return (f"not_shown — {words}. Fix the visual and call show again; "
+                f"nothing is on the screen.")
+    visual = visual_store.add(clean, source=_visual_source())
+    await _push_visual(visual)
+    return _SHOWN_LINE if voice_clients else _NO_TAB_LINE
+
+
+async def tool_show_network(args: dict) -> str:
+    """The LAN as a map on the display, from a sweep — a fresh one if there
+    is no recent result. Answers with a count: the names are on the map."""
+    spoken = str(args.get("target") or "").strip()
+    target = await net_scan.resolve_target(spoken or None)
+    if target.problem:
+        return _SCAN_PROBLEM_LINES.get(target.problem, _SCAN_PROBLEM_LINES["shape"])
+    try:
+        answer = await net_scan.sweep_or_wait(target, fresh=bool(args.get("fresh")))
+    except Exception as e:
+        log.warning("show_network failed: %s", e)
+        return _SCAN_PROBLEM_LINES["failed"]
+    if answer.status == "running":
+        return (f"still_sweeping — the sweep has been going {int(answer.elapsed)} "
+                f"seconds and is not finished. Say only 'Still sweeping, sir.' "
+                f"and call show_network again; that call waits for the result.")
+    scan = answer.scan
+    if scan.problem in ("no_nmap", "failed"):
+        return _SCAN_PROBLEM_LINES[scan.problem]
+
+    age = answer.age if answer.status == "cached" else 0.0
+    gateway = await asyncio.to_thread(net_scan.default_gateway)
+    spec = visuals.network_visual(
+        target.given, scan.devices,
+        own_address=net_scan.own_address(), gateway=gateway,
+        ports_by_address=visuals.ports_for_map([d.address for d in scan.devices]),
+        age_seconds=age, complete=scan.problem != "timeout")
+    visual = visual_store.add(spec, source="a sweep of your network")
+    await _push_visual(visual)
+
+    said = f"{_plural(len(scan.devices), 'device', 'devices')} on the map"
+    if answer.status == "cached":
+        said += f", from a sweep {_say_age(answer.age)}"
+    if not voice_clients:
+        return (f"{said}, sir — but no JARVIS page is open to show it on; it is "
+                f"waiting on the dashboard's Display tab.")
+    return (f"{said}, sir, and it is on the screen. Say one sentence that points "
+            f"at it; the names are on the map, not for reading out.")
+
+
+TOOL_HANDLERS.update({
+    "show": tool_show,
+    "show_network": tool_show_network,
+})
+# `show` changes what is on the user's screen and `show_network` sends probes
+# as `scan_network` does. Both only on the user's own turn: a watcher's turn
+# must not be able to put a picture in front of him.
+ACTING_TOOLS.update({"show", "show_network"})
+
+
+@app.get("/api/visuals")
+async def api_list_visuals():
+    """The Display tab's read: everything shown since JARVIS started, newest
+    first, and which one is on the screen now."""
+    return {"visuals": visual_store.history(),
+            "current": visual_store.current_id,
+            "version": visual_store.version}
+
+
+@app.get("/api/visuals/{visual_id}")
+async def api_get_visual(visual_id: str):
+    visual = visual_store.get(visual_id)
+    if visual is None:
+        return JSONResponse(status_code=404, content={"error": "No such visual"})
+    return {"visual": visual}
+
+
+VISUALS_POLL_DEFAULT = 0.5
+
+
+@app.websocket("/ws/visuals")
+async def ws_visuals(ws: WebSocket):
+    """Live hints for the DISPLAY tab. Same discipline as /ws/specs: the
+    message carries no content — "something moved" is the whole payload and
+    the client reconciles against /api/visuals."""
+    await ws.accept()
+    try:
+        interval = float(os.getenv("JARVIS_VISUALS_POLL", VISUALS_POLL_DEFAULT))
+    except ValueError:
+        interval = VISUALS_POLL_DEFAULT
+    interval = max(0.05, interval)
+    try:
+        previous = visual_store.version
+        await ws.send_json({"type": "hello"})
+        while True:
+            await asyncio.sleep(interval)
+            if visual_store.version != previous:
+                previous = visual_store.version
+                await ws.send_json({"type": "changed"})
+    except (WebSocketDisconnect, RuntimeError, asyncio.CancelledError):
+        pass
+    except Exception as e:
+        log.warning(f"/ws/visuals error: {e}")
+
+
+# ---------------------------------------------------------------------------
 # Usage, out loud
 # ---------------------------------------------------------------------------
 #
@@ -6757,6 +6926,11 @@ async def voice_handler(ws: WebSocket):
         # while they are in flight.
         _enqueue(queue, {"type": "config", "muteMicDuringSpeech": MUTE_MIC_DURING_SPEECH})
         _enqueue(queue, {"type": "status", "state": "idle"})
+        # What is on the display, so a tab that opens or reloads mid-
+        # conversation shows what JARVIS last put up rather than a blank.
+        current_visual = visual_store.current
+        if current_visual is not None:
+            _enqueue(queue, {"type": "visual", "visual": current_visual})
 
         global _last_greeting_time
         if speech is not None and time.time() - _last_greeting_time > 60:
@@ -6769,9 +6943,15 @@ async def voice_handler(ws: WebSocket):
                 msg = json.loads(raw)
             except json.JSONDecodeError:
                 continue
+            kind = msg.get("type")
+            if kind == "visual_closed":
+                # The user dismissed the display. The visual stays in the
+                # history; only the "current" pointer moves, so a tab that
+                # reconnects does not get it straight back.
+                visual_store.clear()
+                continue
             if speech is None:
                 continue
-            kind = msg.get("type")
             if kind == "mic":
                 # The browser's recogniser is the one part of the voice path
                 # whose failures were invisible from here: it can go deaf with
@@ -6836,7 +7016,11 @@ async def voice_handler(ws: WebSocket):
                         else "with nothing of his played yet"
                     log.info(f"User ({verdict}, ignored, {ago}): {text}")
                     continue
-                log.info(f"User: {text}")
+                # A click on the display arrives as a transcript — the same
+                # sentence he would have said — and is logged as the click it
+                # was, so the transcript reads true.
+                via = " (display)" if msg.get("via") == "display" else ""
+                log.info(f"User{via}: {text}")
                 if _is_fresh_start(text):
                     _spawn(_start_fresh())
                     continue

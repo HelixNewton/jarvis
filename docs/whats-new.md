@@ -52,8 +52,8 @@ and watches it:
 ## There is a dashboard now
 
 The public repo's frontend is the orb and nothing else — `main.ts`, `orb.ts`.
-This one adds a six-tab dashboard: **Runs, Sessions, Memory, Specs, Projects,
-Usage**. Every Claude Code process he starts is a *run*: a row in SQLite with
+This one adds a seven-tab dashboard: **Runs, Sessions, Memory, Specs,
+Projects, Display, Usage**. Every Claude Code process he starts is a *run*: a row in SQLite with
 its prompt, project, status, token usage and full event stream, watchable
 live.
 
@@ -92,6 +92,15 @@ devices are answering, and what one of them has open. Your own network only —
 anything routable on the internet is refused before nmap sees it, a target
 can never become an nmap option, and a device's name comes back inside an
 untrusted block like everything else somebody else wrote.
+
+## He can put things on the screen
+
+He speaks two sentences at most, so the detail goes on the screen instead: a
+diagram, a table, steps, a chart or cards he composes (`show`), or a live map
+of your own network (`show_network`), drawn beside the orb and kept on the
+dashboard's Display tab. Click a node to ask about it. Everything is drawn as
+text, never markup, and every picture says where it came from — including
+"drawn from a web page" when a page is what shaped it.
 
 ## And it is tested
 

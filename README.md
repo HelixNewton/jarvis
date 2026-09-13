@@ -113,6 +113,12 @@ is a small, well-isolated file to replace — see *Make it yours* below.
 - **Knows what is on your network.** "What's on my network?" and "what's open
   on the router?" go to the `nmap` on your machine — your own LAN only; a
   public address is refused in code, not in the prompt.
+- **Shows you things.** He speaks two sentences at most, so anything with
+  more shape goes on the screen: a diagram, a table, steps, a chart or cards
+  he composes, drawn beside the orb, and a live map of your network. Click a
+  node to ask him about it. Every picture names its source — "drawn from a
+  web page" when that is where it came from — and the dashboard's Display
+  tab keeps them.
 
 ![The Runs view of the JARVIS dashboard. A red "Needs Attention" panel holds a
 failed run and a timed-out one, with the failure's exit code and error printed
@@ -124,7 +130,7 @@ time.](docs/images/dashboard-runs.png)
 *The Runs view. Every Claude Code process JARVIS starts is a row here, with
 the prompt that started it. Fictional sample data.*
 
-The dashboard has six tabs — Runs, Sessions, Memory, Specs, Projects and
+The dashboard has seven tabs — Runs, Sessions, Memory, Specs, Projects, Display and
 Usage. Usage shows what your subscription's five-hour and seven-day windows
 have left, and who spent it.
 

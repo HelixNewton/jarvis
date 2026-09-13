@@ -475,6 +475,57 @@ TOOL_SPECS = [
         },
     },
     {
+        "name": "show",
+        "description": (
+            "Put a picture on the user's screen beside the orb: a diagram, a "
+            "table, steps, bars or cards you compose. Use it when the answer is "
+            "a structure, a comparison, a sequence or numbers, or he says 'show "
+            "me' or 'visualise'. Then say ONE sentence that points at it; never "
+            "read it out. If it answers not_shown, fix what it names and call "
+            "once more. clear=true takes the display down."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "visual": {
+                    "type": "object",
+                    "description": (
+                        "Flat spec, plain text only (no markup). Always: kind, "
+                        "title (<=80 chars), optional caption (<=240). "
+                        "kind=diagram: nodes [{id, label <=40, sub?, tone?, hub?}], "
+                        "edges [{from, to, label?}], layout? 'radial'|'flow', "
+                        "directed?. kind=table: columns [<=6 names], rows [[cells]]. "
+                        "kind=steps: items [{title, detail?, when?}] — with when "
+                        "it is a timeline. kind=bars: items [{label, value}], "
+                        "unit?, max?. kind=cards: items [{title, value, note?, "
+                        "tone?}]. tone is accent|ok|warn|bad|idle|dim."),
+                },
+                "clear": {"type": "boolean",
+                          "description": "Take the display down instead of drawing."},
+            },
+        },
+    },
+    {
+        "name": "show_network",
+        "description": (
+            "Draw the user's own network on his screen: the router in the "
+            "middle, every device answering around it, this Mac marked, and "
+            "what is open on anything already port-scanned. THE way to answer "
+            "'show me my network'. Sweeps first if there is no recent result, "
+            "in the rhythm of scan_network: say 'Scanning now, sir.', and if it "
+            "comes back still sweeping, say so and call again. Answers with a "
+            "count; the names are on the map, not for reading out."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target": {"type": "string",
+                           "description": "Optional: a network or range on his own LAN. "
+                                          "Omit for the network this machine is on."},
+                "fresh": {"type": "boolean",
+                          "description": "Sweep again even if a recent result exists."},
+            },
+        },
+    },
+    {
         "name": "usage_status",
         "description": (
             "How much of the user's Claude subscription is used: the five-hour "
