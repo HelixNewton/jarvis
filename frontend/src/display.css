@@ -1,86 +1,64 @@
-/* The display panel on the JARVIS page: glass beside the orb, in the orb's
-   own palette. The picture inside it is styled by visual-render.css, which
-   both pages share. */
-
-#orb-canvas {
-  transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-/* The orb steps aside rather than hiding behind the panel. */
-body.display-open #orb-canvas {
-  transform: translateX(-22vw);
-}
+/* The display panel on the JARVIS page: a static card in the workspace's
+   result column, in the shared palette (theme/tokens.css, imported by
+   style.css; the fallbacks here equal the tokens). The picture inside it is
+   styled by visual-render.css, which both pages share. */
 
 #display {
-  position: fixed;
-  top: 68px;
-  right: 20px;
-  /* As tall as the picture, never taller than the room: a three-row table
-     is a small card, a thirty-node map scrolls inside its own panel. */
-  max-height: calc(100vh - 144px);
-  width: min(46vw, 760px);
+  position: static;
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  background: rgba(5, 8, 14, 0.78);
-  border: 1px solid rgba(14, 165, 233, 0.22);
-  border-radius: 10px;
-  box-shadow:
-    0 0 60px -30px rgba(76, 168, 232, 0.9),
-    inset 0 0 40px -28px rgba(155, 216, 255, 0.6);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  color: #dbe8f5;
-  z-index: 15;
-  animation: display-in 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+  background: var(--surface, rgba(76, 168, 232, 0.035));
+  border: 1px solid var(--edge, rgba(124, 196, 255, 0.13));
+  border-radius: 16px;
+  color: var(--text, #dbe8f5);
 }
 #display[hidden] { display: none; }
-
-@keyframes display-in {
-  from { opacity: 0; transform: translateX(24px); }
-  to   { opacity: 1; transform: none; }
-}
 
 .display-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px 8px 18px;
-  border-bottom: 1px solid rgba(14, 165, 233, 0.12);
+  gap: 12px;
+  padding: 10px 12px 10px clamp(16px, 2.2vw, 32px);
+  border-bottom: 1px solid var(--edge, rgba(124, 196, 255, 0.13));
 }
 .display-kicker {
-  font-size: 10px;
-  letter-spacing: 3px;
+  font-size: 11px;
+  letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: rgba(14, 165, 233, 0.55);
+  color: var(--text-faint, rgba(219, 232, 245, 0.54));
 }
 .display-close {
-  width: 28px;
-  height: 28px;
-  border: 1px solid rgba(14, 165, 233, 0.15);
-  border-radius: 6px;
-  background: rgba(14, 165, 233, 0.05);
-  color: rgba(14, 165, 233, 0.6);
-  font-size: 18px;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--edge, rgba(124, 196, 255, 0.13));
+  border-radius: 10px;
+  background: var(--surface, rgba(76, 168, 232, 0.035));
+  color: var(--text-dim, rgba(219, 232, 245, 0.66));
+  font-size: 22px;
   line-height: 1;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background var(--dur-fast, 120ms) var(--ease, ease),
+              color var(--dur-fast, 120ms) var(--ease, ease),
+              border-color var(--dur-fast, 120ms) var(--ease, ease);
 }
 .display-close:hover {
-  background: rgba(14, 165, 233, 0.14);
-  color: rgba(155, 216, 255, 0.9);
-  border-color: rgba(14, 165, 233, 0.3);
+  background: var(--surface-raised, rgba(76, 168, 232, 0.065));
+  color: var(--accent-bright, #9bd8ff);
+  border-color: var(--edge-strong, rgba(124, 196, 255, 0.30));
+}
+.display-close:focus-visible {
+  outline: 2px solid var(--accent-bright, #9bd8ff);
+  outline-offset: 2px;
 }
 .display-body {
-  flex: 1;
-  overflow: auto;
-  padding: 16px 20px 18px;
-}
-
-@media (max-width: 900px) {
-  #display { left: 12px; right: 12px; width: auto; top: 64px; max-height: calc(100vh - 154px); }
-  body.display-open #orb-canvas { transform: translateY(-30vh) scale(0.6); }
+  min-width: 0;
+  padding: clamp(16px, 2.2vw, 32px);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #display { animation: none; }
-  #orb-canvas { transition: none; }
+  .display-close { transition: none; }
 }

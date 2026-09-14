@@ -2405,6 +2405,10 @@ TAINT_EXEMPT_TOOLS = {
     "show": "it draws on the user's screen, it does not read",
     "show_network": ("it puts the map on the screen and answers with a count; "
                      "the device names go to the display, not to the brain"),
+    "show_capture": ("it puts a picture of a page or of his screen ON THE SCREEN "
+                     "and the brain gets one fixed sentence back — the pixels "
+                     "go to the display, never into the brain's context; "
+                     "look_at_page and look_at_screen are the ones that read"),
 }
 
 # Acting tools that only ever bring back MORE content to read. They are gated
@@ -2453,7 +2457,20 @@ UNTRUSTED_READING_TOOLS = {"read_page", "look_at_page", "github_repo",
 # page would leave the user asking twice for one picture. The user chose the
 # source line over the refusal (2026-09-13), knowing the trade: a page can
 # shape what is drawn, and the screen says so.
-TAINT_EXEMPT_ACTING = {"answer_dialog", "show"}
+#
+# With one exception `tool_show` keeps itself: the `web` and `video` kinds
+# put a PAGE in a frame, and a page must not be able to point JARVIS at
+# another page — the same reach `open_in_browser` has, gated the same way.
+# The drawn kinds (text, chart, map, scene and the original five) stay exempt.
+#
+# `show_capture` is the third. What it puts on the screen is a PICTURE — a
+# PNG the server took, base64 — so there is no string in it a page could have
+# composed and nowhere for an instruction to sit; the brain gets one fixed
+# sentence back and never sees the pixels. For a page it is exactly the reach
+# of `look_at_page`, which is already allowed on a tainted turn; for the
+# screen it is `look_at_screen`, likewise. Refusing it would leave "read that
+# and put it up" asking twice for one picture.
+TAINT_EXEMPT_ACTING = {"answer_dialog", "show", "show_capture"}
 
 # Writers whose output outlives the turn. `jarvis_memory.write_memory` puts
 # the model's text verbatim into `memory/*.md` and `add_to_index` into
@@ -6210,16 +6227,22 @@ ACTING_TOOLS.update({"scan_network", "scan_host"})
 #
 # "If I don't know something, JARVIS can visualise it for me — like my active
 # network." JARVIS speaks two sentences at most, so this is where the detail
-# goes: a diagram, a table, steps, a chart or cards, drawn on the JARVIS page
+# goes: a diagram, a table, steps, a chart or cards — and now rich text, a
+# chart, a map, a video, a web page or a 3D scene — drawn on the JARVIS page
 # beside the orb and kept on the dashboard's Display tab. `visuals.py` holds
-# the vocabulary and the caps; this is the plumbing — the two tools, the frame
-# to the voice tab, and the dashboard's read of the history.
+# the vocabulary and the caps; this is the plumbing — the three tools, the
+# frame to the voice tab, and the dashboard's read of the history.
 #
 # A visual is text a model wrote, rendered element by element on the
 # frontend, so it can carry a device's name or a diagram drawn from a web page
 # without either becoming markup. What it may NOT do is pass for JARVIS's own
 # knowledge: every visual names its source, and one drawn on a turn that read
 # foreign text says so on the screen.
+#
+# The third tool, `show_capture`, puts a PICTURE up rather than a spec: a
+# screenshot of a page or of the user's own screen, taken by the server and
+# shown once. It is ephemeral — current while it is up and never in the
+# history — because a capture of his desk is not a thing to keep in a list.
 
 import visuals                                            # noqa: E402
 
@@ -6229,8 +6252,8 @@ visual_store = visuals.Store()
 async def _push_visual(visual: dict | None) -> None:
     """The frame the voice tab gets: the whole spec, or None to take the
     display down. A status frame, not content — with no tab connected it is
-    simply lost, and the tool's answer says so. The visual is in the history
-    for the Display tab either way."""
+    simply lost, and the tool's answer says so. A drawn visual is in the
+    history for the Display tab either way; a capture is not."""
     await _voice_emit({"type": "visual", "visual": visual})
 
 
@@ -6244,6 +6267,17 @@ _NO_TAB_LINE = ("Drawn, sir, but no JARVIS page is open to show it on — it is 
                 "waiting on the dashboard's Display tab.")
 _SHOWN_LINE = ("On the screen now, sir. Say ONE sentence that points at it; do "
                "not read it out.")
+# A capture is not kept, so there is no Display tab to send him to.
+_NO_TAB_CAPTURE_LINE = ("Captured, sir, but no JARVIS page is open to show it "
+                        "on, and captures are not kept, sir.")
+_CAPTURE_SHOWN_LINE = "On the screen now, sir."
+
+# The two kinds that put a PAGE in a frame. A page JARVIS has just read must
+# not be able to point him at another page — that is the reach
+# `open_in_browser` has, and it is gated on the turn the same way. The drawn
+# kinds are not: they are the brain's own composition, labelled with its
+# source, and the user chose that label over a refusal.
+_FRAMED_KINDS = ("web", "video")
 
 
 async def tool_show(args: dict) -> str:
@@ -6258,9 +6292,100 @@ async def tool_show(args: dict) -> str:
         words = visuals.PROBLEMS.get(problem, "the visual is not valid")
         return (f"not_shown — {words}. Fix the visual and call show again; "
                 f"nothing is on the screen.")
+    if clean["kind"] in _FRAMED_KINDS:
+        # `show` is in TAINT_EXEMPT_ACTING, so `/internal/tool` let it
+        # through; the framed kinds make the decision `_untrusted_content_
+        # refusal` would have made, in the same words. `source` is one of the
+        # fixed phrases in TAINTING_TOOLS, never anything read.
+        source = _writer_untrusted_source("show")
+        if source is not None:
+            log.warning("refused show of a %s: %s was read in this turn",
+                        clean["kind"], source)
+            return (f"untrusted_content_in_this_turn — I've had {source} in "
+                    f"front of me this turn, sir, so I'll not put a page on the "
+                    f"screen off the back of it; ask me again and I will.")
     visual = visual_store.add(clean, source=_visual_source())
     await _push_visual(visual)
     return _SHOWN_LINE if voice_clients else _NO_TAB_LINE
+
+
+def _display_number(raw) -> int | None:
+    """Which display, 1-based, or None for the main one — the same reading
+    `tool_look_at_screen` makes."""
+    try:
+        display = int(raw) if raw not in (None, "", "main") else None
+    except (TypeError, ValueError):
+        return None
+    return display if display is not None and display >= 1 else None
+
+
+# What the brain hears when the capture came back as something other than a
+# picture JARVIS will send. Fixed sentences chosen by the ValueError's key.
+_CAPTURE_PROBLEM_LINES = {
+    "image_too_big": "That picture came out too large to put on the screen, sir.",
+    "image_not_png": "The capture did not come back as a picture, sir.",
+}
+
+
+async def tool_show_capture(args: dict) -> str:
+    """Put a screenshot — of a web page, or of one of the user's displays —
+    on the screen, once. The brain gets a sentence and never the pixels;
+    `look_at_page` / `look_at_screen` are the tools that let it SEE.
+
+    The two captures reuse the seams and the refusals of those two tools
+    exactly: `browser.capture_page` under `PAGE_DEADLINE_SEC` with
+    `_web_url_or_refusal` in front of it, `screen.capture_screen` under
+    `SCREEN_DEADLINE_SEC` with `_screen_refusal` behind it. The picture is
+    stored ephemeral (see `visuals.Store`): current, never in the history.
+    """
+    what = str(args.get("of") or "").strip().lower()
+    if what == "page":
+        url, refusal = _web_url_or_refusal(args)
+        if refusal:
+            return refusal
+        try:
+            shot = await asyncio.wait_for(browser.capture_page(url),
+                                          PAGE_DEADLINE_SEC)
+        except asyncio.TimeoutError:
+            return "That page took too long to load, sir — I've given up on it."
+        except browser.PageError as e:
+            return f"No luck there, sir — {e}."
+        except Exception as e:
+            log.warning("show_capture failed for %s: %s", url, e)
+            return "I couldn't get a picture of that page, sir."
+        # Fixed title; the landed address, sanitised, is the caption. No
+        # page title — that is the site's own text.
+        heading, caption = "A page", _sanitised_url(shot.url or url)
+        origin_line = "a capture of the page"
+        width = height = None
+    elif what == "screen":
+        # The same camera `tool_look_at_screen` uses, behind the same gate
+        # (ACTING_TOOLS: the user's own turn, never a watcher's or a timer's).
+        # tests/test_screen_tools.py walks this file for every direct
+        # `screen.capture_screen(` call and holds each one to sitting inside
+        # an acting tool's handler — which this is.
+        try:
+            shot = await asyncio.wait_for(
+                screen.capture_screen(display=_display_number(args.get("display"))),
+                SCREEN_DEADLINE_SEC)
+        except asyncio.TimeoutError:
+            return "That took too long, sir — I've given up on it."
+        except Exception as e:
+            return _screen_refusal(e, "show_capture")
+        heading, caption = "Your screen", ""
+        origin_line = "a capture of your screen"
+        width, height = shot.width, shot.height
+    else:
+        return "Page or screen, sir — which?"
+
+    try:
+        clean = visuals.image_visual(shot.png, title=heading, caption=caption,
+                                     width=width, height=height)
+    except ValueError as e:
+        return _CAPTURE_PROBLEM_LINES.get(str(e), _CAPTURE_PROBLEM_LINES["image_not_png"])
+    visual = visual_store.add(clean, source=origin_line, ephemeral=True)
+    await _push_visual(visual)
+    return _CAPTURE_SHOWN_LINE if voice_clients else _NO_TAB_CAPTURE_LINE
 
 
 async def tool_show_network(args: dict) -> str:
@@ -6283,17 +6408,29 @@ async def tool_show_network(args: dict) -> str:
     if scan.problem in ("no_nmap", "failed"):
         return _SCAN_PROBLEM_LINES[scan.problem]
 
+    # `observed_at` is when the sweep FINISHED — what the picture is true
+    # of — which for a cached answer is `age` seconds before now, not now.
     age = answer.age if answer.status == "cached" else 0.0
+    observed_at = time.time() - age
     gateway = await asyncio.to_thread(net_scan.default_gateway)
     spec = visuals.network_visual(
         target.given, scan.devices,
         own_address=net_scan.own_address(), gateway=gateway,
         ports_by_address=visuals.ports_for_map([d.address for d in scan.devices]),
-        age_seconds=age, complete=scan.problem != "timeout")
+        age_seconds=age, complete=scan.problem != "timeout",
+        observed_at=observed_at)
     visual = visual_store.add(spec, source="a sweep of your network")
     await _push_visual(visual)
 
-    said = f"{_plural(len(scan.devices), 'device', 'devices')} on the map"
+    # Counts are JARVIS's own and may sit in his sentence; the names are on
+    # the map. A map that could not hold every device says both numbers.
+    discovered = len(scan.devices)
+    overflow = spec.get("overflow")
+    shown = int(overflow["shown"]) if overflow else discovered
+    if shown < discovered:
+        said = f"{_plural(discovered, 'device', 'devices')} found, {shown} on the map"
+    else:
+        said = f"{_plural(discovered, 'device', 'devices')} on the map"
     if answer.status == "cached":
         said += f", from a sweep {_say_age(answer.age)}"
     if not voice_clients:
@@ -6306,17 +6443,25 @@ async def tool_show_network(args: dict) -> str:
 TOOL_HANDLERS.update({
     "show": tool_show,
     "show_network": tool_show_network,
+    "show_capture": tool_show_capture,
 })
-# `show` changes what is on the user's screen and `show_network` sends probes
-# as `scan_network` does. Both only on the user's own turn: a watcher's turn
-# must not be able to put a picture in front of him.
-ACTING_TOOLS.update({"show", "show_network"})
+# `show` changes what is on the user's screen, `show_network` sends probes
+# as `scan_network` does, and `show_capture` fetches a page or photographs
+# his desk as `look_at_page` / `look_at_screen` do. All three only on the
+# user's own turn: a watcher's turn must not be able to put a picture in
+# front of him, nor point a browser at a host.
+ACTING_TOOLS.update({"show", "show_network", "show_capture"})
 
 
 @app.get("/api/visuals")
 async def api_list_visuals():
     """The Display tab's read: everything shown since JARVIS started, newest
-    first, and which one is on the screen now."""
+    first, and which one is on the screen now.
+
+    `current` may name an id that is NOT in `visuals`: a capture
+    (`show_capture`, kind `image`) is current while it is up and is never in
+    the history — see `visuals.Store`. `/api/visuals/{id}` still finds it
+    for as long as it is current. That is intended, not a race."""
     return {"visuals": visual_store.history(),
             "current": visual_store.current_id,
             "version": visual_store.version}

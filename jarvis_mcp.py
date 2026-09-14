@@ -477,31 +477,78 @@ TOOL_SPECS = [
     {
         "name": "show",
         "description": (
-            "Put a picture on the user's screen beside the orb: a diagram, a "
-            "table, steps, bars or cards you compose. Use it when the answer is "
-            "a structure, a comparison, a sequence or numbers, or he says 'show "
-            "me' or 'visualise'. Then say ONE sentence that points at it; never "
-            "read it out. If it answers not_shown, fix what it names and call "
-            "once more. clear=true takes the display down."),
+            "Put something on the user's screen beside the orb: a diagram, "
+            "table, steps, bars, cards, rich text (Markdown), a chart, a map, "
+            "a video, an inline web page, or a 3D scene you compose. Use it "
+            "when the answer has more shape than two sentences, or he says "
+            "'show me' or 'visualise'. Then say ONE sentence that points at "
+            "it; never read it out. A web page or video is refused on a turn "
+            "that read foreign text — ask him to say it again. If it answers "
+            "not_shown, fix what it names and call once more. clear=true "
+            "takes the display down."),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "visual": {
                     "type": "object",
                     "description": (
-                        "Flat spec, plain text only (no markup). Always: kind, "
-                        "title (<=80 chars), optional caption (<=240). "
-                        "kind=diagram: nodes [{id, label <=40, sub?, tone?, hub?}], "
+                        "Flat spec. Always: kind, title (<=80 chars), optional "
+                        "caption (<=240). Every string is drawn as text, never "
+                        "markup, except text.body. "
+                        "kind=diagram: nodes [{id, label <=40, sub?, tone?, hub?, "
+                        "icon? device|gateway|computer|network, details? up to 8 "
+                        "{label <=32, value <=120} shown when he selects the node}], "
                         "edges [{from, to, label?}], layout? 'radial'|'flow', "
-                        "directed?. kind=table: columns [<=6 names], rows [[cells]]. "
+                        "directed?, semantic? 'network' only for a map of his own "
+                        "LAN. kind=table: columns [<=6 names], rows [[cells]]. "
                         "kind=steps: items [{title, detail?, when?}] — with when "
                         "it is a timeline. kind=bars: items [{label, value}], "
                         "unit?, max?. kind=cards: items [{title, value, note?, "
-                        "tone?}]. tone is accent|ok|warn|bad|idle|dim."),
+                        "tone?}]. kind=text: body — Markdown, <=12000 chars, "
+                        "fences allowed; for an explanation, a recipe, a poem, a "
+                        "file, code. kind=chart: type line|area|pie, x [<=200 "
+                        "labels], series [{name, values (one per x), tone?}] "
+                        "(<=6; pie: exactly 1 and <=12 labels), unit?, y? {min?, "
+                        "max?}. kind=map: lat, lon (numbers — never an address "
+                        "string), zoom? 1-19, label?. kind=video: url — a "
+                        "YouTube or Vimeo link or a direct .mp4/.webm/.ogg/.mov "
+                        "file. kind=web: url — an http(s) page shown in a frame "
+                        "(most sites allow it, some refuse; not JARVIS itself). "
+                        "kind=scene: objects [{id, shape box|sphere|cylinder|"
+                        "cone|plane|torus, position? [x,y,z] within ±100, size? "
+                        "number or [sx,sy,sz] 0.01-50, rotation? [rx,ry,rz] "
+                        "radians, color? tone or '#rrggbb', label?}] (<=60), "
+                        "autorotate? (default true), grid? (default true). "
+                        "tone is accent|ok|warn|bad|idle|dim."),
                 },
                 "clear": {"type": "boolean",
                           "description": "Take the display down instead of drawing."},
             },
+        },
+    },
+    {
+        "name": "show_capture",
+        "description": (
+            "Put a screenshot on the user's screen beside the orb: what a web "
+            "page, or one of his own displays, looks like right now. Shown, "
+            "not kept — it is not on the Display tab and the next visual "
+            "replaces it. Use it when he wants to SEE a page ('put it up', "
+            "'pull that up') or see his screen back. You get one fixed "
+            "sentence and never the picture: to look at it yourself use "
+            "look_at_page or look_at_screen. Then say ONE sentence that "
+            "points at it."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "of": {"type": "string", "enum": ["page", "screen"],
+                       "description": "'page' captures the url; 'screen' captures a display."},
+                "url": {"type": "string",
+                        "description": "For of=page: the http(s) address to capture."},
+                "display": {"type": "string",
+                            "description": "For of=screen: 'main' (default) or a display "
+                                           "number from 1."},
+            },
+            "required": ["of"],
         },
     },
     {

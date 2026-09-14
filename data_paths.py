@@ -123,6 +123,8 @@ KNOWN_TEMPLATE_HASHES = frozenset({
     "092df6a5e43bc5ed0a31e9f79b1f77cc4849754d1f4ab4807bded122ab97ad5f",  # say "start fresh" when a memory is refused
     "3f01a27a7601d949c63401aebf0384a6d09d4c9cd8fb02ec8e8726a4508e1df0",  # his own network, through nmap
     "445cc373d31b436da7cf4e8f44a244ff23d3d9fc62c73cd773db6545424493d6",  # the display: showing him things
+    "2d1ca672c0ba681a22be6677605a6c7bd4cc746188faa982587a4dd2f990400b",  # choosing the form; network maps say only what was observed
+    "2b1f54f307bc0445f160449831c038cf48269019dec567852b86e403ef65e814",  # text, chart, map, video, web, scene; show_capture
 })
 
 # The same list, for the connections file. APPEND the new hash whenever

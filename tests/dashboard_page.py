@@ -306,3 +306,79 @@ def run_row(run_id: str = "r1", status: str = "succeeded") -> dict:
         "created_at": 1788404000.0, "started_at": 1788404001.0,
         "ended_at": 1788404100.0,
     }
+
+
+# ── the JARVIS page (index.html) ───────────────────────────────────────────
+#
+# The orb page has no REST surface to stub: it talks over one WebSocket, and
+# the stub server does not speak WebSocket. So the page gets a FAKE socket
+# class instead — installed before any script of the page runs — that
+# reports itself open and keeps every frame the page sends, parsed, in
+# `window.__sent`. A test can then assert exactly what a click sent (or that
+# it sent nothing) with no server at all, and never a real microphone or
+# model behind it.
+
+GL_ARGS = ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
+"""Chromium flags under which the orb's WebGL renders in headless mode here
+(software GL). A page without WebGL still boots — main.ts keeps a stand-in —
+but then the orb draws nothing and the frame-count checks would be vacuous."""
+
+FAKE_SOCKET_SCRIPT = """
+(() => {
+  window.__sent = [];
+  class FakeSocket {
+    static CONNECTING = 0; static OPEN = 1; static CLOSING = 2; static CLOSED = 3;
+    constructor(url) {
+      this.url = String(url);
+      this.readyState = FakeSocket.OPEN;
+      this.onopen = null; this.onmessage = null; this.onclose = null; this.onerror = null;
+      setTimeout(() => { if (this.onopen) this.onopen({ type: "open" }); }, 0);
+    }
+    send(data) { window.__sent.push(JSON.parse(String(data))); }
+    close() {
+      this.readyState = FakeSocket.CLOSED;
+      if (this.onclose) this.onclose({ type: "close", code: 1000 });
+    }
+    addEventListener() {}
+    removeEventListener() {}
+  }
+  window.WebSocket = FakeSocket;
+})();
+"""
+
+
+@asynccontextmanager
+async def main_page(api: Api, *, viewport: dict = VIEWPORT, reduced_motion: bool = False):
+    """The built JARVIS page (index.html) against `api`, as a `page` to drive.
+
+    Mirrors `dashboard()`: one browser per test, the bundle built once. The
+    differences: Chromium gets the software-GL flags so the orb actually
+    draws; `reduced_motion=True` emulates `prefers-reduced-motion: reduce`;
+    and the fake WebSocket above is installed BEFORE navigation, so the
+    page's `createSocket` never reaches for the network. No fake clock — the
+    orb's frame counter is the thing under test in places, and it needs
+    real requestAnimationFrame time.
+    """
+    from playwright.async_api import async_playwright
+
+    dist = build_bundle()
+    with StubServer(api, dist) as server:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True, args=GL_ARGS)
+            try:
+                context = await browser.new_context(
+                    viewport=viewport,
+                    reduced_motion="reduce" if reduced_motion else "no-preference")
+                page = await context.new_page()
+                await page.add_init_script(FAKE_SOCKET_SCRIPT)
+                await page.goto(f"{server.base}/index.html", wait_until="load")
+                yield page
+            finally:
+                await browser.close()
+
+
+async def sent(page) -> list:
+    """Every frame the page has sent over its (fake) socket so far, parsed,
+    oldest first. Includes the microphone's own lifecycle reports
+    (`type: "mic"`), which arrive on their own schedule."""
+    return await page.evaluate("Array.isArray(window.__sent) ? window.__sent.slice() : []")

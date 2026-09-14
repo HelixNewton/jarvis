@@ -1,3 +1,18 @@
+/* ===========================================================================
+   JARVIS — the page
+   ---------------------------------------------------------------------------
+   A header (wordmark, controls), then the workspace: the assistant rail —
+   the orb and its readouts — beside whatever JARVIS is showing. Idle, the
+   rail is the page and the orb sits in the middle of it; with something on
+   the display the rail narrows to a column and the result takes the room.
+   Everything is in the flow: the page scrolls vertically, never sideways,
+   and nothing is fixed to the viewport.
+
+   Colours are the shared tokens (theme/tokens.css). The display panel
+   itself is styled in display.css and the picture in it by visual-render.css.
+   =========================================================================== */
+@import "./theme/tokens.css";
+
 * {
   margin: 0;
   padding: 0;
@@ -5,130 +20,288 @@
 }
 
 html, body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: #050508;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--ground);
 }
 
-#orb-canvas {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+body {
+  color: var(--text);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
 }
 
-#status-text {
-  position: fixed;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: rgba(14, 165, 233, 0.5);
-  font-size: 13px;
-  letter-spacing: 2px;
-  text-transform: lowercase;
-  font-weight: 300;
-  transition: opacity 0.5s ease;
-  pointer-events: none;
-  z-index: 10;
+/* Spacing shared by the header and the workspace. */
+:root {
+  --page-pad: clamp(16px, 2.2vw, 32px);
 }
 
-#jarvis-label {
-  position: fixed;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: rgba(14, 165, 233, 0.2);
-  font-size: 10px;
-  letter-spacing: 4px;
+/* -- header ------------------------------------------------------------------ */
+
+#app-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px var(--page-pad);
+  border-bottom: 1px solid var(--edge);
+  z-index: 20;
+}
+
+#wordmark {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.34em;
   text-transform: uppercase;
-  font-weight: 300;
-  pointer-events: none;
-  z-index: 10;
+  color: var(--accent);
+  user-select: none;
 }
 
 #controls {
-  position: fixed;
-  top: 16px;
-  right: 16px;
   display: flex;
   gap: 8px;
-  z-index: 20;
 }
 
 #controls button {
   width: 36px;
   height: 36px;
-  border: 1px solid rgba(14, 165, 233, 0.15);
+  border: 1px solid var(--edge);
   border-radius: 8px;
-  background: rgba(14, 165, 233, 0.05);
-  color: rgba(14, 165, 233, 0.4);
+  background: var(--surface);
+  color: var(--text-dim);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease);
 }
 
 #controls button:hover {
-  background: rgba(14, 165, 233, 0.12);
-  color: rgba(14, 165, 233, 0.7);
-  border-color: rgba(14, 165, 233, 0.3);
+  background: var(--surface-raised);
+  color: var(--accent-bright);
+  border-color: var(--edge-strong);
+}
+
+#controls button:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
 }
 
 #controls button.muted {
-  color: rgba(239, 68, 68, 0.6);
-  border-color: rgba(239, 68, 68, 0.2);
+  color: var(--signal-bad);
+  border-color: rgba(255, 90, 110, 0.35);
 }
 
+/* Under the header's right edge; the one thing that floats. */
 #menu-dropdown {
-  position: fixed;
-  top: 58px;
-  right: 16px;
-  background: rgba(10, 10, 15, 0.95);
-  border: 1px solid rgba(14, 165, 233, 0.15);
+  position: absolute;
+  top: calc(100% + 6px);
+  right: var(--page-pad);
+  min-width: 180px;
+  background: var(--ground-lift);
+  border: 1px solid var(--edge-strong);
   border-radius: 8px;
   padding: 4px;
-  z-index: 20;
-  backdrop-filter: blur(12px);
+  z-index: 30;
+  box-shadow: 0 12px 40px -20px rgba(0, 0, 0, 0.9);
 }
 
 #menu-dropdown button {
   display: block;
   width: 100%;
-  padding: 8px 16px;
+  padding: 10px 16px;
   border: none;
   background: none;
-  color: rgba(14, 165, 233, 0.5);
-  font-size: 12px;
-  letter-spacing: 1px;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.04em;
   text-align: left;
   cursor: pointer;
   border-radius: 4px;
-  transition: all 0.15s;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 #menu-dropdown button:hover {
-  background: rgba(14, 165, 233, 0.1);
-  color: rgba(14, 165, 233, 0.8);
+  background: var(--surface-raised);
+  color: var(--accent-bright);
+}
+
+/* -- workspace --------------------------------------------------------------- */
+
+#workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--page-pad);
+  align-items: start;
+  padding: var(--page-pad);
+  width: 100%;
+  min-width: 0;
+}
+
+/* The rail. Idle: the orb in the middle of the page, readouts under it. */
+#assistant-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  min-height: calc(100dvh - 160px);
+  min-width: 0;
+}
+
+#orb-host {
+  position: relative;
+  width: min(100%, 440px);
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+#orb-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#readouts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  text-align: center;
+}
+
+#status-text {
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+  overflow-wrap: anywhere;
+}
+
+#link-state, #mic-state {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
 }
 
 #error-text {
-  position: fixed;
-  top: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: rgba(239, 68, 68, 0.7);
+  color: var(--signal-bad);
   font-size: 13px;
-  letter-spacing: 1px;
-  font-weight: 300;
-  transition: opacity 0.5s ease;
-  pointer-events: none;
-  z-index: 10;
+  letter-spacing: 0.02em;
+  min-height: 1.4em;
   opacity: 0;
+  transition: opacity 0.5s ease;
+  overflow-wrap: anywhere;
 }
+
+/* The result. Hidden until JARVIS shows something. */
+#result-mount {
+  min-width: 0;
+  width: 100%;
+}
+#result-mount[hidden] { display: none; }
+
+/* Something on the display: the rail becomes a column, the result the page. */
+body.display-open #workspace {
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+
+body.display-open #assistant-rail {
+  justify-content: flex-start;
+  min-height: 0;
+  gap: 16px;
+}
+
+body.display-open #orb-host {
+  width: min(100%, 240px);
+}
+
+@media (max-width: 1000px) {
+  body.display-open #workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* A compact row: the orb, small, beside the readouts, above the result. */
+  body.display-open #assistant-rail {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 16px;
+  }
+  body.display-open #orb-host {
+    width: 80px;
+    flex: 0 0 80px;
+  }
+  body.display-open #readouts {
+    align-items: flex-start;
+    text-align: left;
+  }
+}
+
+@media (max-width: 600px) {
+  :root { --page-pad: 12px; }
+  #app-header { padding: 10px 12px; }
+  #assistant-rail { gap: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #error-text, #controls button, #menu-dropdown button { transition: none; }
+}
+
+/* Microphone input meter — the answer to "is it even hearing me?", visible
+   without opening a console. Deliberately small and out of the way: it is
+   reassurance while things work and evidence when they do not. Lives in the
+   rail under the readouts. */
+#mic-level {
+  position: static;
+  width: 90px;
+  height: 3px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.10);
+  overflow: hidden;
+  pointer-events: none;
+}
+#mic-level::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: var(--level, 0%);
+  background: #4fd1ff;
+  opacity: 0.55;
+  transition: width 0.08s linear;
+}
+#mic-level.is-hot::after { opacity: 1; }
+
+/* Stop — shown only while he is speaking, because that is the only moment it
+   means anything. Escape does the same thing without reaching for the mouse. */
+#hush {
+  position: static;
+  margin-top: 8px;
+  padding: 9px 22px;
+  min-height: 40px;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+  background: var(--surface-raised);
+  border: 1px solid var(--edge-strong);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+#hush:hover { color: #eaf8ff; border-color: var(--accent-bright); }
+#hush:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
+#hush[hidden] { display: none; }
 
 /* ---------------------------------------------------------------------------
    Settings Panel
@@ -431,53 +604,3 @@ html, body {
   display: flex;
   justify-content: flex-end;
 }
-
-/* Microphone input meter — the answer to "is it even hearing me?", visible
-   without opening a console. Deliberately small and out of the way: it is
-   reassurance while things work and evidence when they do not. */
-#mic-level {
-  position: fixed;
-  left: 18px;
-  bottom: 18px;
-  width: 90px;
-  height: 3px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.10);
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 50;
-}
-#mic-level::after {
-  content: "";
-  display: block;
-  height: 100%;
-  width: var(--level, 0%);
-  background: #4fd1ff;
-  opacity: 0.55;
-  transition: width 0.08s linear;
-}
-#mic-level.is-hot::after { opacity: 1; }
-
-/* Stop — shown only while he is speaking, because that is the only moment it
-   means anything. Escape does the same thing without reaching for the mouse. */
-#hush {
-  position: fixed;
-  left: 50%;
-  bottom: 7vh;
-  transform: translateX(-50%);
-  padding: 9px 22px;
-  font: inherit;
-  font-size: 13px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #9fd8ef;
-  background: rgba(10, 22, 32, 0.72);
-  border: 1px solid rgba(79, 209, 255, 0.35);
-  border-radius: 999px;
-  cursor: pointer;
-  z-index: 40;
-  backdrop-filter: blur(4px);
-  transition: border-color 0.15s ease, color 0.15s ease;
-}
-#hush:hover { color: #eaf8ff; border-color: rgba(79, 209, 255, 0.75); }
-#hush[hidden] { display: none; }

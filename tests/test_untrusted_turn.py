@@ -300,11 +300,21 @@ def test_answering_a_dialog_survives(call):
     labelled as JARVIS's drawing with its source printed under it ("drawn
     from a web page" on a turn that read one), runs nothing and sends nothing
     anywhere. The user chose the source line over the refusal, so "read that
-    and show me" works in one breath — tests/test_visuals.py drives it."""
+    and show me" works in one breath — tests/test_visuals.py drives it. The
+    one thing `show` keeps for itself is the two kinds that put a PAGE in a
+    frame (`web`, `video`): a page must not point JARVIS at another page, so
+    `tool_show` refuses those on a tainted turn in the gate's own words.
+
+    The third is `show_capture`: a PNG the server took, of a page or of his
+    screen, put on the screen as pixels — no string in it a page could have
+    composed, and the brain gets one fixed sentence back. For a page it is
+    the reach of `look_at_page`, already allowed on a tainted turn; for the
+    screen, `look_at_screen`, likewise."""
     server = call[2]
     assert server._untrusted_content_refusal("answer_dialog", True) is None
     assert server._untrusted_content_refusal("show", True) is None
-    assert server.TAINT_EXEMPT_ACTING == {"answer_dialog", "show"}
+    assert server._untrusted_content_refusal("show_capture", True) is None
+    assert server.TAINT_EXEMPT_ACTING == {"answer_dialog", "show", "show_capture"}
 
 
 def test_steering_and_running_a_command_are_no_longer_exempt(call):
