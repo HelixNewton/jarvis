@@ -164,8 +164,14 @@ async def test_a_web_page_in_the_turn_does_not_shut_the_screen_tools(ready, monk
 def test_nothing_captures_the_screen_on_a_timer(ready):
     """The original fed screen state into EVERY turn via
     `format_windows_for_context()`, and the always-on context thread that did
-    the same for windows was removed tonight. It does not come back: the only
-    caller of `capture_screen` is the tool the user's own words reach."""
+    the same for windows was removed tonight. It does not come back: every
+    caller of `capture_screen` is a tool the user's own words reach.
+
+    The rule was never "one caller" — it was "only on his say-so". It was
+    pinned at one because one was all there was; the display's capture tool
+    made it two, and pinning the number would have forced the second caller
+    to hide behind an alias to pass. So the check is the rule itself: each
+    call sits inside the handler of an ACTING tool, and nowhere else."""
     import ast
     server, _fake = ready
     tree = ast.parse(Path(server.__file__).read_text())
@@ -174,8 +180,25 @@ def test_nothing_captures_the_screen_on_a_timer(ready):
     called = [n.func.attr for n in ast.walk(tree)
               if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
               and isinstance(n.func.value, ast.Name) and n.func.value.id == "screen"]
-    assert called.count("capture_screen") == 1
     assert called.count("list_windows") == 1
+
+    callers = set()
+    for fn in tree.body:
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for n in ast.walk(fn):
+            if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                    and isinstance(n.func.value, ast.Name)
+                    and n.func.value.id == "screen" and n.func.attr == "capture_screen"):
+                callers.add(fn.name)
+    assert callers, "nothing reaches capture_screen at all"
+    acting_handlers = {server.TOOL_HANDLERS[t].__name__
+                       for t in server.ACTING_TOOLS if t in server.TOOL_HANDLERS}
+    assert callers <= acting_handlers, \
+        f"capture_screen is reached outside an acting tool: {callers - acting_handlers}"
+    # And every call is one of those direct calls — no alias, no timer, no
+    # module-level reach.
+    assert called.count("capture_screen") == len(callers) == 2, (called, callers)
 
     reached = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
     reached |= {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}

@@ -2,10 +2,12 @@
  * JARVIS — Main entry point.
  *
  * Wires together the orb visualization, WebSocket communication,
- * speech recognition, and audio playback into a single experience.
+ * speech recognition, audio playback and the display into a single
+ * experience. The page is a workspace (index.html): the assistant rail —
+ * the orb and its readouts — beside the result JARVIS is showing.
  */
 
-import { createOrb, type OrbState } from "./orb";
+import { createOrb, type Orb, type OrbState } from "./orb";
 import { createVoiceInput, createAudioPlayer, createMicMonitor } from "./voice";
 import { createSocket } from "./ws";
 import { openSettings, checkFirstTimeSetup } from "./settings";
@@ -23,6 +25,10 @@ let isMuted = false;
 
 const statusEl = document.getElementById("status-text")!;
 const errorEl = document.getElementById("error-text")!;
+const linkEl = document.getElementById("link-state");
+const micStateEl = document.getElementById("mic-state");
+const rail = document.getElementById("assistant-rail") ?? document.body;
+const readouts = document.getElementById("readouts") ?? rail;
 
 function showError(msg: string) {
   errorEl.textContent = msg;
@@ -32,15 +38,22 @@ function showError(msg: string) {
   }, 5000);
 }
 
+// The status readout: one word for where he is. A notice from the server
+// (a context rotation, say) borrows the line until it is cleared.
+const STATUS_LABELS: Record<State, string> = {
+  idle: "Idle",
+  listening: "Listening",
+  thinking: "Thinking…",
+  speaking: "Speaking",
+  compacting: "Tidying up…",
+};
+
 function updateStatus(state: State) {
-  const labels: Record<State, string> = {
-    idle: "",
-    listening: "listening...",
-    thinking: "thinking...",
-    speaking: "",
-    compacting: "",          // the notice banner carries the words; the orb carries the state
-  };
-  statusEl.textContent = labels[state];
+  statusEl.textContent = STATUS_LABELS[state];
+}
+
+function updateMicState() {
+  if (micStateEl) micStateEl.textContent = isMuted ? "Muted" : "Listening";
 }
 
 // ---------------------------------------------------------------------------
@@ -48,7 +61,21 @@ function updateStatus(state: State) {
 // ---------------------------------------------------------------------------
 
 const canvas = document.getElementById("orb-canvas") as HTMLCanvasElement;
-const orb = createOrb(canvas);
+
+// The orb needs WebGL. Without it (a headless check, a browser with it
+// switched off) the rest of the page — the readouts, the display — must
+// still work, so a failure to build it leaves a quiet stand-in.
+function createOrbSafely(el: HTMLCanvasElement): Orb {
+  try {
+    return createOrb(el);
+  } catch (err) {
+    console.warn("[orb] not available", err);
+    return {
+      setState() {}, setAnalyser() {}, frames: () => 0, paused: () => true, destroy() {},
+    };
+  }
+}
+const orb = createOrbSafely(canvas);
 
 const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
 const WS_URL = `${wsProto}//${window.location.host}/ws/voice`;
@@ -102,11 +129,13 @@ const voiceInput = createVoiceInput(
 
 // A live meter for the microphone itself. If this moves when you speak, the
 // microphone is working — whatever else is or is not happening. It answers
-// "is it even hearing me?" without a log, a console or anyone to ask.
+// "is it even hearing me?" without a log, a console or anyone to ask. It
+// sits in the rail under the readouts.
 const micDot = document.createElement("div");
 micDot.id = "mic-level";
 micDot.title = "microphone input";
-document.body.appendChild(micDot);
+micDot.setAttribute("aria-hidden", "true");
+readouts.appendChild(micDot);
 
 const micMonitor = createMicMonitor(
   (level: number) => {
@@ -134,37 +163,38 @@ hushBtn.type = "button";
 hushBtn.textContent = "Stop";
 hushBtn.title = "Stop speaking (Esc)";
 hushBtn.hidden = true;
-document.body.appendChild(hushBtn);
+readouts.appendChild(hushBtn);
 
-function hush() {
-  if (currentState !== "speaking") return;
+/** Silence him. Returns whether there was anything to silence. */
+function hush(): boolean {
+  if (currentState !== "speaking") return false;
   // Locally first: the round trip is real and silence should be instant.
   audioPlayer.stop();
   socket.send({ type: "hush" });
   transition(isMuted ? "idle" : "listening");
+  return true;
 }
 
-hushBtn.addEventListener("click", hush);
-window.addEventListener("keydown", (e: KeyboardEvent) => {
-  if (e.key === "Escape") { e.preventDefault(); hush(); }
-});
+hushBtn.addEventListener("click", () => { hush(); });
 
 audioPlayer.onPlayed((utt, idx) => {
   socket.send({ type: "played", utt, idx });
 });
 
 // ── the display ───────────────────────────────────────────────────────────
-// A panel beside the orb for what JARVIS draws. Closing it tells the server,
-// so a reload does not bring it straight back; clicking something in it asks
-// about it in the same words the hover showed, as a transcript — the server
-// treats it exactly as speech, and logs it as the click it was.
+// The result column of the workspace, for what JARVIS draws. Closing it
+// tells the server, so a reload does not bring it straight back; the Ask
+// button on a selected item asks about it in the same words, as a
+// transcript — the server treats it exactly as speech, and logs it as the
+// click it was.
+const resultMount = document.getElementById("result-mount") ?? document.body;
 const display = createDisplay({
   onClose: () => socket.send({ type: "visual_closed" }),
   onAsk: (label: string) => {
     socket.send({ type: "transcript", text: `Tell me more about ${label}`,
                   isFinal: true, via: "display" });
   },
-});
+}, resultMount);
 
 // End of speech is the server's call (`status: idle` after every chunk is
 // acked); a transient empty queue mid-utterance must not flip the UI.
@@ -208,10 +238,11 @@ socket.onMessage((msg) => {
   } else if (type === "notice") {
     // Shown, never spoken. The server sends one when it is about to be busy
     // for a few seconds (a context rotation), and an empty string to clear it.
-    // Without it the pause looks like a crash.
+    // Without it the pause looks like a crash. Cleared, the line goes back
+    // to the state word.
     const text = String(msg.text ?? "");
-    statusEl.textContent = text;
-    if (text) console.log("[notice]", text);
+    if (text) { statusEl.textContent = text; console.log("[notice]", text); }
+    else updateStatus(currentState);
   } else if (type === "visual") {
     // What JARVIS is putting on the screen: the whole spec, already bounded
     // and flattened by the server, or null to take the display down.
@@ -220,6 +251,20 @@ socket.onMessage((msg) => {
     else display.clear();
   }
 });
+
+// The link readout: polled, because the socket reconnects on its own and
+// the readout should say so without the socket having to know about it.
+let linkedOnce = false;
+function updateLinkState() {
+  const on = socket.isConnected();
+  if (on) linkedOnce = true;
+  // "Reconnecting…" is only true after a drop; before the first connection it is "Connecting…".
+  if (linkEl) linkEl.textContent = on ? "Connected" : linkedOnce ? "Reconnecting…" : "Connecting…";
+}
+updateLinkState();
+setInterval(updateLinkState, 1000);
+updateMicState();
+updateStatus(currentState);
 
 // ---------------------------------------------------------------------------
 // Kick off
@@ -255,10 +300,20 @@ const menuDropdown = document.getElementById("menu-dropdown")!;
 const btnRestart = document.getElementById("btn-restart")!;
 const btnFixSelf = document.getElementById("btn-fix-self")!;
 
+function menuIsOpen(): boolean {
+  return menuDropdown.style.display !== "none";
+}
+function setMenu(open: boolean) {
+  menuDropdown.style.display = open ? "block" : "none";
+  btnMenu.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
 btnMute.addEventListener("click", (e) => {
   e.stopPropagation();
   isMuted = !isMuted;
   btnMute.classList.toggle("muted", isMuted);
+  btnMute.setAttribute("aria-pressed", isMuted ? "true" : "false");
+  updateMicState();
   if (isMuted) {
     voiceInput.pause();
     transition("idle");
@@ -270,43 +325,66 @@ btnMute.addEventListener("click", (e) => {
 
 btnMenu.addEventListener("click", (e) => {
   e.stopPropagation();
-  menuDropdown.style.display = menuDropdown.style.display === "none" ? "block" : "none";
+  setMenu(!menuIsOpen());
 });
 
 document.addEventListener("click", () => {
-  menuDropdown.style.display = "none";
+  setMenu(false);
 });
 
 btnRestart.addEventListener("click", async (e) => {
   e.stopPropagation();
-  menuDropdown.style.display = "none";
-  statusEl.textContent = "restarting...";
+  setMenu(false);
+  statusEl.textContent = "Restarting…";
   try {
     await fetch("/api/restart", { method: "POST" });
     // Wait a few seconds then reload
     setTimeout(() => window.location.reload(), 4000);
   } catch {
-    statusEl.textContent = "restart failed";
+    statusEl.textContent = "Restart failed";
   }
 });
 
 btnFixSelf.addEventListener("click", (e) => {
   e.stopPropagation();
-  menuDropdown.style.display = "none";
+  setMenu(false);
   // Activate work mode on the WebSocket session (JARVIS becomes Claude Code's voice)
   // Milestone 1 has no tools yet; "Fix yourself" returns as a brain tool later.
-  statusEl.textContent = "fix-yourself is not available in this build";
+  statusEl.textContent = "Fix-yourself is not available in this build";
 });
 
 // Settings button
 const btnSettings = document.getElementById("btn-settings")!;
 btnSettings.addEventListener("click", (e) => {
   e.stopPropagation();
-  menuDropdown.style.display = "none";
+  setMenu(false);
   openSettings();
+});
+
+// ── Escape ────────────────────────────────────────────────────────────────
+// The one keydown handler for it, in this order: an open menu closes; else
+// a selection in the display clears (the renderer never handles the key
+// itself); else it hushes him. Handled, it is consumed; already handled by
+// something before us, left alone.
+window.addEventListener("keydown", (e: KeyboardEvent) => {
+  if (e.key === "Escape") {
+    if (e.defaultPrevented) return;
+    if (menuIsOpen()) { setMenu(false); e.preventDefault(); return; }
+    if (display.clearSelection()) { e.preventDefault(); return; }
+    if (hush()) e.preventDefault();
+  }
 });
 
 // First-time setup detection — check after a short delay for server readiness
 setTimeout(() => {
   checkFirstTimeSetup();
 }, 2000);
+
+// ---------------------------------------------------------------------------
+// Dev and test hooks. window.jarvisShow is set by the display (visual.ts);
+// window.jarvisOrb reports whether the orb is drawing.
+// ---------------------------------------------------------------------------
+(window as unknown as { jarvisOrb: { frames(): number; paused(): boolean } }).jarvisOrb = {
+  frames: () => orb.frames(),
+  paused: () => orb.paused(),
+};

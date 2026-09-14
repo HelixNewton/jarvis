@@ -7,14 +7,20 @@
  * drawn on the right by the SAME renderer the orb page uses — so this is the
  * picture he showed, not a copy of it.
  *
- * Read-only. There is no voice channel on this page, so nothing here is
- * click-to-ask: the renderer is given no `onAsk` and draws no affordance it
- * could not honour. Every string is model-written text and goes through
+ * There is no voice channel on this page, so nothing here asks: the renderer
+ * is given no `onAsk` and draws no Ask button. Selecting a node, row or card
+ * still works — it opens the inspector with the item's details, which is
+ * useful on its own. Every string is model-written text and goes through
  * textContent — inside the renderer, and in the rows here.
+ *
+ * One VisualView at a time: paint() destroys the current one before it
+ * repaints, so switching pictures (or a reconcile re-drawing the same one)
+ * never leaves an observer or a timer behind — window.__vz.live stays at
+ * most 1 here.
  */
 import { listVisuals, ApiError } from "./api";
 import { connectDisplayLive } from "./display-live";
-import { renderVisual, ago, type Visual } from "../visual-render";
+import { createVisual, ago, type Visual, type VisualView } from "../visual-render";
 import { el, row, pill, emptyState } from "./ui";
 
 let started = false;
@@ -24,6 +30,8 @@ let currentId: string | null = null;
 /** The one the reader has opened here. Follows `currentId` until they pick. */
 let openId: string | null = null;
 let unavailable = false;
+/** The picture drawn in the detail pane right now. */
+let view: VisualView | null = null;
 
 const KIND_WORD: Record<string, string> = {
   diagram: "diagram", table: "table", steps: "steps", bars: "chart", cards: "cards",
@@ -42,7 +50,9 @@ export function initDisplay(): void {
 export async function refreshDisplay(): Promise<void> {
   try {
     const snap = await listVisuals();
-    visuals = snap.visuals;
+    // A capture (ephemeral) is shown, not kept: never listed here even if
+    // one ever arrives in the list, and never fetched as a picture.
+    visuals = snap.visuals.filter((v) => !v.ephemeral);
     currentId = snap.current;
     unavailable = false;
     // A new picture on the screen is what the reader came to look at, unless
@@ -70,6 +80,11 @@ function banner(text: string | null): void {
   node.textContent = text ?? "";
 }
 
+function dropView(): void {
+  view?.destroy();
+  view = null;
+}
+
 function paint(): void {
   const list = document.getElementById("display-list");
   const meta = document.getElementById("display-list-meta");
@@ -83,12 +98,21 @@ function paint(): void {
     badge.textContent = "on screen";
   }
 
+  // The JARVIS page can be showing a capture — current, but not in the
+  // history, by design. The badge stays on; the pane says why the list has
+  // no such row; the picture itself is never fetched into the dashboard.
+  const captureUp = currentId !== null && !visuals.some((v) => v.id === currentId);
+  const captureNote = (): HTMLElement =>
+    el("p", "display-capture-note", "A capture is on the screen right now; captures are not kept here.");
+
   list.replaceChildren();
   if (visuals.length === 0) {
     if (!unavailable) {
       list.append(emptyState("Nothing shown yet. Ask JARVIS to show you something."));
     }
+    dropView();
     detail.replaceChildren();
+    if (captureUp) detail.append(captureNote());
     return;
   }
 
@@ -115,7 +139,14 @@ function paint(): void {
                  open.id === currentId ? "On the screen now" : `Shown ${ago(open.at)}`));
   head.append(el("span", "panel-meta", open.source));
   const body = el("div", "panel-body");
-  body.append(renderVisual(open, {}));
+  // The old view goes before the new one is drawn; the new one is mounted
+  // only once it is in the document, so its first layout has a real width.
+  dropView();
+  const next = createVisual(open, {});
+  view = next;
+  body.append(next.element);
   pane.append(head, body);
   detail.replaceChildren(pane);
+  if (captureUp) detail.prepend(captureNote());
+  next.mount();
 }

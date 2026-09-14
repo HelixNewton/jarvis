@@ -2,8 +2,10 @@
    DISPLAY VIEW — the pictures JARVIS has shown, kept
    ---------------------------------------------------------------------------
    The picture itself is drawn by visual-render.css (shared with the JARVIS
-   page). This file only places it: the master list on the left, the pane on
-   the right, and the "open" mark on the row being looked at.
+   page), title size and all — the same picture must not shrink because it
+   is being looked at here. This file only places it: the master list on the
+   left, the pane on the right, and the "open" mark on the row being looked
+   at.
    =========================================================================== */
 
 .display-kind { text-transform: uppercase; letter-spacing: var(--ls-label); font-size: var(--fs-label); }
@@ -17,4 +19,3 @@
 }
 
 .display-pane > .panel-body { padding: var(--sp-5); }
-.display-pane .vz-title { font-size: var(--fs-lg); }

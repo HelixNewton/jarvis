@@ -7,34 +7,54 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <canvas id="orb-canvas"></canvas>
+    <!-- The workspace: a header with the wordmark and the controls, then the
+         assistant rail (orb and readouts) beside whatever JARVIS is showing.
+         The page scrolls vertically and never horizontally; nothing here is
+         fixed to the viewport. -->
+    <header id="app-header">
+      <div id="wordmark">JARVIS</div>
 
-    <!-- Minimal controls — top right -->
-    <div id="controls">
-      <button id="btn-mute" title="Mute/Unmute">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-          <line x1="12" y1="19" x2="12" y2="23"/>
-        </svg>
-      </button>
-      <button id="btn-menu" title="Menu">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>
-        </svg>
-      </button>
-    </div>
+      <!-- Minimal controls — top right -->
+      <div id="controls">
+        <button id="btn-mute" type="button" title="Mute/Unmute" aria-label="Mute or unmute the microphone">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+          </svg>
+        </button>
+        <button id="btn-menu" type="button" title="Menu" aria-label="Menu" aria-haspopup="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>
+          </svg>
+        </button>
+      </div>
 
-    <!-- Dropdown menu -->
-    <div id="menu-dropdown" style="display:none">
-      <button id="btn-settings">Settings</button>
-      <button id="btn-restart">Restart Server</button>
-      <button id="btn-fix-self">Fix Yourself</button>
-    </div>
+      <!-- Dropdown menu, under the header's right edge -->
+      <div id="menu-dropdown" style="display:none">
+        <button id="btn-settings" type="button">Settings</button>
+        <button id="btn-restart" type="button">Restart Server</button>
+        <button id="btn-fix-self" type="button">Fix Yourself</button>
+      </div>
+    </header>
 
-    <div id="status-text"></div>
-    <div id="jarvis-label">JARVIS</div>
-    <div id="error-text"></div>
+    <main id="workspace">
+      <section id="assistant-rail" aria-label="Assistant">
+        <div id="orb-host">
+          <canvas id="orb-canvas"></canvas>
+        </div>
+        <div id="readouts">
+          <div id="status-text" role="status" aria-live="polite">Idle</div>
+          <div id="link-state">Reconnecting…</div>
+          <div id="mic-state">Listening</div>
+          <div id="error-text" role="alert"></div>
+          <!-- #mic-level and #hush are created by main.ts and appended here. -->
+        </div>
+      </section>
+
+      <section id="result-mount" hidden aria-label="Current result"></section>
+    </main>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

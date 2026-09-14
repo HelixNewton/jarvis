@@ -1,0 +1,60 @@
+/* ===========================================================================
+   JARVIS — SHARED TOKENS
+   ---------------------------------------------------------------------------
+   The names both pages agree on: the dashboard (which @imports this first
+   and adds its own tokens after) and the display renderer (visual-render.css,
+   which reads every one of these through var(--x, fallback) so the picture
+   beside the orb looks the same without this file being loaded there).
+
+   Palette is lifted from the orb (frontend/src/orb.ts): a #05070c ground with
+   #4ca8e8 particles and white-hot highlights. The surfaces are translucent
+   on purpose — the glass is the look — so anything drawn on them reads the
+   ground through them.
+
+   CONTRAST (WCAG relative luminance, text composited over --ground #05070c;
+   the translucent surfaces shift the numbers by less than 0.2):
+     --text        #dbe8f5                       16.19 : 1
+     --text-dim    rgba(219,232,245,0.66)         7.19 : 1   (was 0.55 → 5.23)
+     --text-faint  rgba(219,232,245,0.54)         5.07 : 1   (was 0.30 → 2.27)
+     --accent-bright #9bd8ff                     13.11 : 1
+     --accent      #4ca8e8                        7.75 : 1
+   Both dimmed levels are used for 12px text (captions, sub-labels, the
+   source line), and 12px text needs 4.5 : 1 — the old --text-faint was a
+   long way short, so both were raised and the gap between them kept.
+   =========================================================================== */
+
+:root {
+  /* -- Ground & surfaces ------------------------------------------------- */
+  --ground:          #05070c;
+  --ground-lift:     #070b12;
+  --surface:         rgba(76, 168, 232, 0.035);
+  --surface-raised:  rgba(76, 168, 232, 0.065);
+
+  /* -- Edges ------------------------------------------------------------- */
+  --edge:            rgba(124, 196, 255, 0.13);
+  --edge-strong:     rgba(124, 196, 255, 0.30);
+
+  /* -- Signal hues. Reach for these only to define a tone. --------------- */
+  --accent:          #4ca8e8;
+  --accent-bright:   #9bd8ff;
+  --signal-ok:       #3ee0a6;
+  --signal-warn:     #ffb648;
+  --signal-bad:      #ff5a6e;
+  --signal-idle:     #7f8fa6;
+
+  /* -- Text -------------------------------------------------------------- */
+  --text:            #dbe8f5;
+  --text-dim:        rgba(219, 232, 245, 0.66);
+  --text-faint:      rgba(219, 232, 245, 0.54);
+
+  /* -- Type -------------------------------------------------------------- */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+             Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+
+  /* -- Motion. Motion is reserved for change, never decoration. ---------- */
+  --dur-fast: 120ms;
+  --dur:      220ms;
+  --ease:     cubic-bezier(0.2, 0.7, 0.2, 1);
+}
